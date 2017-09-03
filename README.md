@@ -1,10 +1,22 @@
-# hw1
+# hw1 - Homework 1, Part 1
 
 First homework assignment in CS539.
 
+## To build Uber (aka FAT) JAR
+
+Use leiningen to build this program:
+
+```
+lein clean
+lein uberjar
+```
+
+The JAR file 'hw1' will now be found in the 'target' sub-directory.
+
 ## Usage
 
-java -jar hw1.jar -f brown_sample.txt
+java -jar hw1.jar [--help] [--num N] ../resources/brown_sample.txt
+
 
 ## License
 
