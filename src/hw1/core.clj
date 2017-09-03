@@ -5,9 +5,10 @@
 )
 
 (defn tokenize
-  "Split given lines at whitespace. Ignore leading whitespace. Return a single sequence of tokens."
+  "Split given sequence of lines at whitespace. Ignore surrounding whitespace.
+   Convert tokens to lowercase. Return a single sequence of tokens."
   [lines]
-  (mapcat #(str/split (str/triml %) #"\s+") lines) )
+  (map str/lower-case (mapcat #(str/split (str/trim %) #"\s+") lines)) )
 
 (defn split-tokens
   "Map each of the given WORD/POS tokens into a list of WORD and POS strings"
@@ -19,12 +20,27 @@
   [split-tokens]
   (filter #(re-matches #"\w+" (second %)) split-tokens) )
 
-(defn compute-frequencies [split-tokens]
-  (let [ sort-by-freq-desc (fn [freqs] (sort (fn [x y] (compare (second y) (second x))) freqs)) ]
-    ;; return a map of sequences sorted by frequency in descending order:
-    { :words (sort-by-freq-desc (frequencies (map first split-tokens)))
-      :pos (sort-by-freq-desc (frequencies (map second split-tokens)))
-      :word-pos (sort-by-freq-desc (frequencies split-tokens)) }
+(defn sort-by-freq-desc
+  "Sort a map of item-count pairs in descending order by the frequency (value) component"
+  [item-count-map]
+  (sort (fn [x y] (compare (second y) (second x))) item-count-map) )
+
+(defn compute-frequencies
+  "Given a split-token sequence, return a map of WORD, POS, and WORD/POS sequences.
+   Each sequence contains item-count pairs, sorted by frequency in descending order"
+  [split-tokens]
+  { :words (sort-by-freq-desc (frequencies (map first split-tokens)))
+    :pos (sort-by-freq-desc (frequencies (map second split-tokens)))
+    :word-pos (sort-by-freq-desc (frequencies split-tokens)) }
+)
+
+(defn make-frequencies [inFile]
+  (->> (line-seq (clojure.java.io/reader inFile)) ; read all lines
+       (filter #(not (str/blank? %)))       ; filter out blank lines
+       (tokenize)                           ; returns token sequence
+       (split-tokens)                       ; split each token into WORD and POS string pair
+       (remove-punctuation)                 ; filter out punctuation tokens
+       (compute-frequencies)                ; returns map of all frequency counts
 ))
 
 (defn print-frequencies
@@ -45,15 +61,6 @@
                                       (second wptok))) )
 ))
 
-(defn make-frequencies [inFile top-n]
-  (->> (line-seq (clojure.java.io/reader inFile)) ; read all lines
-       (filter #(not (str/blank? %)))       ; filter out blank lines
-       (tokenize)                           ; returns token sequence
-       (split-tokens)                       ; split each token into WORD and POS strings
-       (remove-punctuation)                 ; filter out punctuation tokens
-       (compute-frequencies)                ; returns frequency counts
-))
-
 
 (defn -main [& args]
   (let [ usage "java -jar hw1.jar [--help] [--num N] brown_sample.txt"
@@ -72,6 +79,7 @@
         (println flag-usage)
         (System/exit 1)) )
 
+    ;; check for reasonable integer
     (if (not (> (:num options) 0))
       (do
         (println "ERROR: N must be an integer greater than 0")
@@ -82,18 +90,21 @@
     ;; check for missing required input file path
     (if (empty? other-args)
       (do
-        (println "ERROR: Required input file path argument is missing.")
+        (println "ERROR: Required input-file-path argument is missing.")
         (println usage)
         (println flag-usage)
         (System/exit 3)) )
 
-    ;; call the main computational function, then print out the results:
-    (let [ freqs (make-frequencies (first other-args) (:num options)) ]
+    ;; call the main computational function, then format and print the results:
+    (let [ freqs (make-frequencies (first other-args)) ]
        (print-frequencies freqs (:num options)) )
 ))
 
+;; Usage Examples: calls from the REPL:
 (comment
-  ;; Examples: call from REPL on sample file in the resources subdirectory:
+  ;; call on sample file in the resources subdirectory:
   (main "resources/brown_sample.txt")
+
+  ;; call specifying non-default number of results:
   (main "-n" "20" "myFile.txt")
 )
