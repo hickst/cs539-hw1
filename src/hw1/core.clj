@@ -4,21 +4,35 @@
   (:gen-class)
 )
 
+(defn read-lines
+  "Read, clean, and prepare a sequence of lines from the given input file"
+  [inFile]
+  (map #(str/lower-case %)                  ; lowercase the entire line
+    (filter #(not (str/blank? %))           ; filter out blank lines
+      (map #(str/trim %)                    ; trim whitespace from lines
+        (line-seq (clojure.java.io/reader inFile)) ; read all lines
+))))
+
 (defn tokenize
-  "Split given sequence of lines at whitespace. Ignore surrounding whitespace.
-   Convert tokens to lowercase. Return a single sequence of tokens."
+  "Split each of the pre-prepared lines at whitespace. Return a single sequence of tokens."
   [lines]
-  (map str/lower-case (mapcat #(str/split (str/trim %) #"\s+") lines)) )
+  (mapcat #(str/split % #"\s+") lines) )
 
 (defn split-tokens
-  "Map each of the given WORD/POS tokens into a list of WORD and POS strings"
+  "Map each of the given WORD/POS tokens into a list of WORD and POS strings.
+   Takes into account that WORD can include a slash."
   [tokens]
-  (map #(str/split %1 #"/") tokens) )
+  (let [ split-token #(str/split % #"/")
+         rejoin-parts (fn [parts]
+                        (if (> (count parts) 2)                 ; if there was more than one slash
+                          [ (str/join "/" (butlast parts)) (last parts) ] ; then rejoin WORD
+                          parts)) ]                             ; else just return token parts
+    (map rejoin-parts (map split-token tokens)) ))
 
 (defn remove-punctuation
   "Remove any token, from the given sequence, whose POS tag does not contain any letters"
   [split-tokens]
-  (filter #(re-matches #"\w+" (second %)) split-tokens) )
+  (filter #(re-find #"\w+" (second %)) split-tokens) )
 
 (defn sort-by-freq-desc
   "Sort a map of item-count pairs in descending order by the frequency (value) component"
@@ -35,13 +49,12 @@
 )
 
 (defn make-frequencies [inFile]
-  (->> (line-seq (clojure.java.io/reader inFile)) ; read all lines
-       (filter #(not (str/blank? %)))       ; filter out blank lines
-       (tokenize)                           ; returns token sequence
+  (->> (read-lines (clojure.java.io/reader inFile)) ; read and prepare all lines
+       (tokenize)                           ; produces sequence of tokens
        (split-tokens)                       ; split each token into WORD and POS string pair
        (remove-punctuation)                 ; filter out punctuation tokens
-       (compute-frequencies)                ; returns map of all frequency counts
-))
+       (compute-frequencies) ))             ; returns map of all frequency counts
+
 
 (defn print-frequencies
   "Format and print the top N results in each of the categories stored in the counts map"
@@ -60,7 +73,6 @@
       (println (format "  %-10s\t%5d" (str (ffirst wptok) "/" (second (first wptok)))
                                       (second wptok))) )
 ))
-
 
 (defn -main [& args]
   (let [ usage "java -jar hw1.jar [--help] [--num N] brown_sample.txt"
